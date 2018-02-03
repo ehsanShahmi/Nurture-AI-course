@@ -1,0 +1,3 @@
+Get the dataset of this assignment from this link :  http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz 
+
+and then save the ...-py folder in the cs231n/dataset folder
