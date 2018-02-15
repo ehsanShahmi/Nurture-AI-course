@@ -77,6 +77,22 @@ def svm_loss_vectorized(W, X, y, reg):
   # result in loss.                                                           #
   #############################################################################
   scores = X.dot(W)
+  Correct_class_scores = []
+  for i in range(num_train):
+      Correct_class_scores.append([ scores[i][y[i]] ]*num_classes)
+  Correct_class_scores = np.array(Correct_class_scores)
+  #print (Correct_class_scores.shape)
+  Margin = scores - Correct_class_scores + ((scores - Correct_class_scores) != 0)
+  #print (Margin.shape)
+
+  loss += np.sum((Margin>0) * Margin)/num_train
+  loss += reg * np.sum(W * W)
+    
+  Margin_count = np.multiply(X.T , ( Margin > 0).sum(1) ).T
+  dW += np.dot(X.T, (Margin > 0))/num_train
+  dW -= np.dot(Margin_count.T, (Margin == 0))/num_train
+  dW += reg*2*W
+  #print (dW.shape)
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -91,7 +107,7 @@ def svm_loss_vectorized(W, X, y, reg):
   # to reuse some of the intermediate values that you used to compute the     #
   # loss.                                                                     #
   #############################################################################
-  pass
+  
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
