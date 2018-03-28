@@ -2,3 +2,5 @@ matplotlib
 scipy
 numpy
 sklearn
+
+read this for better solutions of the codes: http://www.amendgit.com/2017/cs224n-assignment-1/

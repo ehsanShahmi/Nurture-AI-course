@@ -16,7 +16,8 @@ def normalizeRows(x):
 
     ### YOUR CODE HERE
     try:
-        x /= np.sqrt(np.sum(x ** 2, keepdims=True, axis=1))
+        x_l = np.linalg.norm(x, axis=1, keepdims=True)
+        x /= x_l
     except:
         raise NotImplementedError
     ### END YOUR CODE
@@ -64,11 +65,24 @@ def softmaxCostAndGradient(predicted, target, outputVectors, dataset):
 
     ### YOUR CODE HERE
     try:
-        print ("")
+        u0 = outputVectors[target]
+        z = outputVectors.dot(predicted)
+        #y_hat = softmax(z)
+        cost = np.log(np.sum(np.exp(z)[None].T, axis=0)) - u0.dot(predicted)
+        #cost = np.sum(np.exp(z)[None].T, axis=0) - u0.dot(predicted)
+        
+        #gradPred = -u0 + np.sum(y_hat.reshape(-1,1).dot(outputVectors))
+        gradPred = -u0 + np.sum(np.exp(z)[None].T*outputVectors, axis=0)
+        
+        #grad = y_hat.reshape(-1,1) * np.repeat(predicted.reshape((1,outputVectors.shape[0])), outputVectors.shape[0], axis=0)
+        grad = np.exp(z)[None].T * np.tile(predicted, (outputVectors.shape[0],1))
+        grad[target] -= predicted
     except:
         raise NotImplementedError
     ### END YOUR CODE
-
+    
+    assert gradPred.shape == predicted.shape
+    assert grad.shape == outputVectors.shape
     return cost, gradPred, grad
 
 
@@ -84,8 +98,7 @@ def getNegativeSamples(target, dataset, K):
     return indices
 
 
-def negSamplingCostAndGradient(predicted, target, outputVectors, dataset,
-                               K=10):
+def negSamplingCostAndGradient(predicted, target, outputVectors, dataset, K=10):
     """ Negative sampling cost function for word2vec models
 
     Implement the cost and gradients for one predicted word vector
@@ -105,16 +118,30 @@ def negSamplingCostAndGradient(predicted, target, outputVectors, dataset,
 
     ### YOUR CODE HERE
     try:
-        print ("")
+        u0 = outputVectors[target]
+        s0 = sigmoid(u0.dot(predicted))
+        neg_samples = outputVectors[indices[1:]]
+        #s = sigmoid(-neg_samples.dot(predicted))
+        s = sigmoid(-neg_samples.dot(predicted))[None].T
+        cost = -np.log(s0) - np.sum(np.log(s))
+        
+        gradPred = (s0 - 1.)*u0 - np.sum((s - 1.)*neg_samples)
+        
+        grad = np.zeros(outputVectors.shape)
+        grad[target] = (s0 - 1.) * predicted
+        #grad[indices[1:]] = -(s - 1.) * np.repeat(predicted.reshape((1,K)), K, axis=0)
+        grad[indices[1:]] = -(s - 1.) * np.tile(predicted, (K, 1))
+        
     except:
         raise NotImplementedError
     ### END YOUR CODE
 
+    assert gradPred.shape == predicted.shape
+    assert grad.shape == outputVectors.shape
     return cost, gradPred, grad
 
 
-def skipgram(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
-             dataset, word2vecCostAndGradient=softmaxCostAndGradient):
+def skipgram(currentWord, C, contextWords, tokens, inputVectors, outputVectors, dataset, word2vecCostAndGradient=softmaxCostAndGradient):
     """ Skip-gram model in word2vec
 
     Implement the skip-gram model in this function.
@@ -143,7 +170,14 @@ def skipgram(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
 
     ### YOUR CODE HERE
     try:
-        print ("")
+        predictedword = inputVectors[tokens[currentWord]]
+        for worditem in contextWords:
+            target = tokens[worditem]
+            temp_cost, temp_gradPred, temp_grad = word2vecCostAndGradient(predictedword, target, outputVectors, dataset)
+            
+            cost += temp_cost
+            gradIn[tokens[currentWord]] += temp_gradPred
+            gradOut += temp_grad
     except:
         raise NotImplementedError
     ### END YOUR CODE
@@ -151,8 +185,7 @@ def skipgram(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
     return cost, gradIn, gradOut
 
 
-def cbow(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
-         dataset, word2vecCostAndGradient=softmaxCostAndGradient):
+def cbow(currentWord, C, contextWords, tokens, inputVectors, outputVectors, dataset, word2vecCostAndGradient=softmaxCostAndGradient):
     """CBOW model in word2vec
 
     Implement the continuous bag-of-words model in this function.
@@ -170,7 +203,14 @@ def cbow(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
 
     ### YOUR CODE HERE
     try:
-        print ("")
+        target = tokens[currentWord]
+        predictedWord = np.zeros(inputVectors.shape[1])
+        for wordItem in contextWords:
+            predictedWord += inputVectors[tokens[wordItem]]
+            
+        cost, gradPred, gradOut = word2vecCostAndGradient(predictedWord, target, outputVectors, dataset)
+        for wordItem in contextWords:
+            gradIn[tokens[wordItem]] += gradPred
     except:
         raise NotImplementedError
     ### END YOUR CODE
@@ -182,15 +222,14 @@ def cbow(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
 # Testing functions below. DO NOT MODIFY!   #
 #############################################
 
-def word2vec_sgd_wrapper(word2vecModel, tokens, wordVectors, dataset, C,
-                         word2vecCostAndGradient=softmaxCostAndGradient):
+def word2vec_sgd_wrapper(word2vecModel, tokens, wordVectors, dataset, C, word2vecCostAndGradient=softmaxCostAndGradient):
     batchsize = 50
     cost = 0.0
     grad = np.zeros(wordVectors.shape)
-    N = wordVectors.shape[0]
-    inputVectors = wordVectors[:N/2,:]
-    outputVectors = wordVectors[N/2:,:]
-    for i in xrange(batchsize):
+    N = int(wordVectors.shape[0]/2)
+    inputVectors = wordVectors[:N,:]
+    outputVectors = wordVectors[N:,:]
+    for i in range(batchsize):
         C1 = random.randint(1,C)
         centerword, context = dataset.getRandomContext(C1)
 
@@ -199,12 +238,10 @@ def word2vec_sgd_wrapper(word2vecModel, tokens, wordVectors, dataset, C,
         else:
             denom = 1
 
-        c, gin, gout = word2vecModel(
-            centerword, C1, context, tokens, inputVectors, outputVectors,
-            dataset, word2vecCostAndGradient)
+        c, gin, gout = word2vecModel(centerword, C1, context, tokens, inputVectors, outputVectors, dataset, word2vecCostAndGradient)
         cost += c / batchsize / denom
-        grad[:N/2, :] += gin / batchsize / denom
-        grad[N/2:, :] += gout / batchsize / denom
+        grad[:N, :] += gin / batchsize / denom
+        grad[N:, :] += gout / batchsize / denom
 
     return cost, grad
 
@@ -217,7 +254,7 @@ def test_word2vec():
 
     def getRandomContext(C):
         tokens = ["a", "b", "c", "d", "e"]
-        return tokens[random.randint(0,4)], [tokens[random.randint(0,4)] for i in xrange(2*C)]
+        return tokens[random.randint(0,4)], [tokens[random.randint(0,4)] for i in range(2*C)]
     dataset.sampleTokenIdx = dummySampleTokenIdx
     dataset.getRandomContext = getRandomContext
 
@@ -236,11 +273,14 @@ def test_word2vec():
 
     print ("\n=== Results ===")
     print (skipgram("c", 3, ["a", "b", "e", "d", "b", "c"], dummy_tokens, dummy_vectors[:5,:], dummy_vectors[5:,:], dataset))
+    print ("")
     print (skipgram("c", 1, ["a", "b"], dummy_tokens, dummy_vectors[:5,:], dummy_vectors[5:,:], dataset, negSamplingCostAndGradient))
+    print ("")
     print (cbow("a", 2, ["a", "b", "c", "a"], dummy_tokens, dummy_vectors[:5,:], dummy_vectors[5:,:], dataset))
+    print ("")
     print (cbow("a", 2, ["a", "b", "a", "c"], dummy_tokens, dummy_vectors[:5,:], dummy_vectors[5:,:], dataset, negSamplingCostAndGradient))
 
 
 if __name__ == "__main__":
     test_normalize_rows()
-    #test_word2vec()
+    test_word2vec()
