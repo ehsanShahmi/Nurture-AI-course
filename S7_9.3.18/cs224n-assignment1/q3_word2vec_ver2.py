@@ -178,14 +178,15 @@ def cbow(currentWord, C, contextWords, tokens, inputVectors, outputVectors, data
     gradOut = np.zeros(outputVectors.shape)
 
     ### YOUR CODE HERE
-    cIndex = tokens[currentWord]
-    predicted = inputVectors[cIndex, :]
+    target = tokens[currentWord]
+    predicted = np.zeros(inputVectors.shape[1])
     for contextWord in contextWords:
-        target = tokens[contextWord]
-        cCost, cGradPred, cGrad = word2vecCostAndGradient(predicted, target, outputVectors, dataset)
-        cost += cCost
-        gradIn[cIndex,:] += cGradPred
-        gradOut += cGrad
+    	predicted += inputVectors[tokens[contextWord]]
+    cCost, cGradPred, cGrad = word2vecCostAndGradient(predicted, target, outputVectors, dataset)
+    cost += cCost
+    gradOut += cGrad
+    for contextWord in contextWords:
+    	gradIn[tokens[contextWord]] += cGradPred
     return cost, gradIn, gradOut
 
 #############################################
