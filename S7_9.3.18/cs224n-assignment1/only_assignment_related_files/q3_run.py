@@ -8,7 +8,7 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import time
 
-from q3_word2vec_ver2 import *
+from q3_word2vec import *
 from q3_sgd import *
 
 # Reset the random seed to make sure that everyone gets the same results
